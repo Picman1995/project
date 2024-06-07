@@ -1,0 +1,271 @@
+package com.coop8.demojwt.Service;
+
+import com.coop8.demojwt.Jwt.JwtService;
+import com.coop8.demojwt.Models.EstadosCiviles;
+import com.coop8.demojwt.Models.Ciudad;
+import com.coop8.demojwt.Models.Nacionalidades;
+import com.coop8.demojwt.Models.Personas;
+import com.coop8.demojwt.Models.TiposDocumentos;
+import com.coop8.demojwt.Models.TiposPersonas;
+import com.coop8.demojwt.PayloadModels.PersonasResponseModel;
+import com.coop8.demojwt.Repository.PersonasRepository;
+import com.coop8.demojwt.Request.PersonasRequest;
+import com.coop8.demojwt.Response.PaginacionResponse;
+import com.coop8.demojwt.Response.PersonasResponse;
+import com.coop8.demojwt.Response.Response;
+import com.coop8.demojwt.Response.ResponseHeader;
+import com.coop8.demojwt.Response.SecuredResponse;
+import com.coop8.demojwt.Utils.DateUtil;
+import com.coop8.demojwt.Utils.ECodigosRespuestas;
+import com.coop8.demojwt.Utils.Util;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.stereotype.Service;
+
+import jakarta.transaction.Transactional;
+import jakarta.validation.Valid;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
+import java.util.Optional;
+
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.userdetails.UserDetails;
+
+@Service
+@Slf4j
+public class PersonasService {
+
+    @Autowired
+    PersonasRepository personasRepository;
+
+    @Autowired
+    JwtService jwtService;
+
+    @Autowired
+    private AuthenticationManager authenticationManager;
+
+    public SecuredResponse list(@Valid PersonasRequest personasRequest) throws Exception {
+        log.info("PersonasService | list");
+        log.info("__personasRequest: " + Util.getJsonFromObject(personasRequest));
+
+        // Obtener el UserDetails del contexto de seguridad
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        
+        if (authentication == null || !authentication.isAuthenticated()) {
+            throw new Exception("Usuario no autenticado");
+        }
+
+        Object principal = authentication.getPrincipal();
+        
+        if (!(principal instanceof UserDetails)) {
+            throw new ClassCastException("El principal de autenticación no es una instancia de UserDetails");
+        }
+        
+        UserDetails userDetails = (UserDetails) principal;
+
+        List<Personas> personasList;
+        int pagina = Math.max(personasRequest.getPaginacion().getPagina() - 1, 0);
+        int cantidad = Math.max(personasRequest.getPaginacion().getCantidad(), 1); // Asegura que la cantidad sea al menos 1
+        Pageable paging = PageRequest.of(pagina, cantidad);
+
+        Page<Personas> pagePersonas;
+        if (Util.isNullOrEmpty(personasRequest.getNroDocumento())) {
+            pagePersonas = personasRepository.findAllByOrderByNroDocumentoAsc(paging);
+        } else {
+            pagePersonas = personasRepository.findByNroDocumentoContainingIgnoreCaseOrderByNroDocumentoAsc(
+                    personasRequest.getNroDocumento(), paging);
+        }
+
+        personasList = pagePersonas.getContent();
+        List<PersonasResponseModel> personasResponseModels = new ArrayList<>();
+        for (Personas personas : personasList) {
+            PersonasResponseModel eu = new PersonasResponseModel();
+            eu.filterPayloadToSend(personas);
+            personasResponseModels.add(eu);
+        }
+
+        PersonasResponse personasResponse = new PersonasResponse();
+        personasResponse.setPersonas(personasResponseModels);
+        PaginacionResponse pageableResponse = new PaginacionResponse();
+
+        pageableResponse.setTotalItems(pagePersonas.getTotalElements());
+        pageableResponse.setTotalPages(pagePersonas.getTotalPages());
+        pageableResponse.setCurrentPages(pagePersonas.getNumber() + 1);
+        personasResponse.setPaginacion(pageableResponse);
+
+        // Crear una nueva respuesta que contenga los datos de las personas
+        SecuredResponse securedResponse = new SecuredResponse();
+        securedResponse.setData(jwtService.getDataFromPayload(personasResponse));
+        return securedResponse;
+    }
+
+
+    
+     public SecuredResponse getById(@Valid PersonasRequest personasRequest) throws Exception {
+        log.info("PersonasService | getById");
+        log.info("__personasRequest: " + Util.getJsonFromObject(personasRequest));
+
+        PersonasResponse personasResponse = new PersonasResponse();
+        long idPersona = personasRequest.getId();
+        Optional<Personas> persona = personasRepository.findById(idPersona);
+
+        if (persona.isPresent()) {
+            List<PersonasResponseModel> personasResponseModels = new ArrayList<>();
+            PersonasResponseModel eu = new PersonasResponseModel();
+            eu.filterPayloadToSend(persona.get());
+            personasResponseModels.add(eu);
+
+            personasResponse.setPersonas(personasResponseModels);
+        }
+
+        ResponseHeader header = new ResponseHeader();
+        Response response = new Response();
+        SecuredResponse securedResponse = new SecuredResponse();
+
+        header.setCodResultado(ECodigosRespuestas.SUCCESS.getCodigoRespuesta());
+        header.setTxtResultado(ECodigosRespuestas.SUCCESS.getTxtRespuesta());
+        response.setHeader(header);
+        response.setData(personasResponse);
+
+        log.info("__PersonasResponse: " + Util.getJsonFromObject(personasResponse));
+        securedResponse.setData(jwtService.getDataFromPayload(response));
+        log.info("__response: " + Util.getJsonFromObject(response));
+        log.info("__securedResponse: " + Util.getJsonFromObject(securedResponse));
+
+        return securedResponse;
+    }
+
+ public SecuredResponse save(@Valid PersonasRequest personasRequest) throws Exception {
+        log.info("PersonasService | save");
+        log.info("__personasRequest: " + Util.getJsonFromObject(personasRequest));
+
+        ResponseHeader header = new ResponseHeader();
+        Response response = new Response();
+        SecuredResponse securedResponse = new SecuredResponse();
+
+        String usuariosys = SecurityContextHolder.getContext().getAuthentication().getName();
+        log.info("Usuario del sistema: " + usuariosys);
+
+        // Si la persona tiene ID, intentar actualizar
+        if (personasRequest.getId() != 0) {
+            log.info("Intentando actualizar persona con ID: " + personasRequest.getId());
+            // Convertir el id de int a long
+            long personaId = personasRequest.getId();
+            Optional<Personas> optionalPersona = personasRepository.findById(personaId);
+            if (optionalPersona.isPresent()) {
+                Personas personaUpdate = optionalPersona.get();
+                mapPersonasRequestToEntity(personasRequest, personaUpdate, usuariosys);
+                personasRepository.save(personaUpdate);
+                log.info("Persona actualizada con éxito: " + personaUpdate);
+            } else {
+                log.error("Persona no encontrada con ID: " + personasRequest.getId());
+                throw new IllegalArgumentException("Persona no encontrada");
+            }
+        } else {
+            // Si la persona no tiene ID, insertar nueva persona
+            log.info("Insertando nueva persona");
+            Personas personaInsert = new Personas();
+            mapPersonasRequestToEntity(personasRequest, personaInsert, usuariosys);
+            personasRepository.save(personaInsert);
+            log.info("Persona insertada con éxito: " + personaInsert);
+        }
+
+        header.setCodResultado(ECodigosRespuestas.SUCCESS.getCodigoRespuesta());
+        header.setTxtResultado(ECodigosRespuestas.SUCCESS.getTxtRespuesta());
+        response.setHeader(header);
+        response.setData(null);
+
+        securedResponse.setData(jwtService.getDataFromPayload(response));
+        log.info("__response: " + Util.getJsonFromObject(response));
+        log.info("__securedResponse: " + Util.getJsonFromObject(securedResponse));
+        return securedResponse;
+    }
+
+    private void mapPersonasRequestToEntity(PersonasRequest request, Personas entity, String usuariosys) {
+        entity.setNombre1(request.getNombre1());
+        entity.setNombre2(request.getNombre2());
+        entity.setNombre3(request.getNombre3());
+        entity.setApellido1(request.getApellido1());
+        entity.setApellido2(request.getApellido2());
+        entity.setApellido3(request.getApellido3());
+        entity.setSexo(request.getSexo());
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
+        String fechaActualStr = sdf.format(new Date());
+        entity.setFechasys(java.sql.Date.valueOf(fechaActualStr));
+        entity.setUsuariosys(usuariosys);
+        entity.setNroDocumento(request.getNroDocumento());
+
+        // Convertir la fecha de nacimiento al formato "yyyy-MM-dd"
+        SimpleDateFormat dbDateFormat = new SimpleDateFormat("yyyy-MM-dd");
+        String fechaNacimientoStr = dbDateFormat.format(request.getFechaNacimiento());
+        entity.setFechaNacimiento(java.sql.Date.valueOf(fechaNacimientoStr));
+
+        Long tipoPersonaId = Long.valueOf(request.getTipoPersona());
+        Long tipoDocumentoId = Long.valueOf(request.getTipoDocumento());
+        Long estadoCivilId = Long.valueOf(request.getEstadoCivil());
+        Integer ciudad = Integer.valueOf(request.getCiudad());
+        Long nacionalidadId = Long.valueOf(request.getNacionalidad());
+
+        entity.setTipoDocumento(new TiposDocumentos(tipoDocumentoId, null, usuariosys));
+        entity.setTipoPersona(new TiposPersonas(tipoPersonaId, null, usuariosys));
+        entity.setEstadoCivil(new EstadosCiviles(estadoCivilId, null, usuariosys));
+        entity.setCiudad(new Ciudad(ciudad, null, null, usuariosys));
+        entity.setNacionalidad(new Nacionalidades(nacionalidadId, null, usuariosys));
+    }
+
+    public void savePerson(PersonasRequest personasRequest, String usuariosys) {
+        Personas persona = new Personas();
+        mapPersonasRequestToEntity(personasRequest, persona, usuariosys);
+        personasRepository.save(persona);
+    }
+
+
+public SecuredResponse deleteById(@Valid PersonasRequest personasRequest) throws Exception {
+    log.info("PersonasService | deleteById");
+    log.info("__personasRequest: " + Util.getJsonFromObject(personasRequest));
+
+    long idPersona = personasRequest.getId();
+    ResponseHeader header = new ResponseHeader();
+    Response response = new Response();
+    SecuredResponse securedResponse = new SecuredResponse();
+
+    personasRepository.deleteById(idPersona);
+    header.setCodResultado(ECodigosRespuestas.SUCCESS.getCodigoRespuesta());
+    header.setTxtResultado(ECodigosRespuestas.SUCCESS.getTxtRespuesta());
+    response.setHeader(header);
+    response.setData(null);
+
+    securedResponse.setData(jwtService.getDataFromPayload(response));
+    log.info("__response: " + Util.getJsonFromObject(response));
+    log.info("__securedResponse: " + Util.getJsonFromObject(securedResponse));
+
+    return securedResponse;
+}
+
+private SecuredResponse handleMissingToken() {
+    ResponseHeader header = new ResponseHeader();
+    Response response = new Response();
+    SecuredResponse securedResponse = new SecuredResponse();
+
+    header.setCodResultado(ECodigosRespuestas.ERROR.getCodigoRespuesta());
+    header.setTxtResultado("JWT String argument cannot be null or empty.");
+    response.setHeader(header);
+    response.setData(null);
+
+    try {
+        securedResponse.setData(jwtService.getDataFromPayload(response));
+    } catch (Exception ex) {
+        log.error("Error handling missing token", ex);
+    }
+    return securedResponse;
+}
+}

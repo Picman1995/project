@@ -1,0 +1,14 @@
+{
+    "configurations": [
+        {
+            "type": "java",
+            "name": "Spring Boot-DemoJwtApplication<coop8marzo>",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "mainClass": "com.coop8.demojwt.DemoJwtApplication",
+            "projectName": "coop8marzo",
+            "args": "",
+            "envFile": "${workspaceFolder}/.env"
+        }
+    ]
+}

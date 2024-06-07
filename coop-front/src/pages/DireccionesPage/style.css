@@ -1,0 +1,74 @@
+@import url("https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap");
+
+* {
+  font-family: 'Poppins', sans-serif;
+
+}
+
+:root {
+  --background: #ff7300;
+  --accent: #ffffff;
+}
+
+
+.contenido_persona {
+  width:90%;
+  height: 100%;
+ 
+  background-color: rgb(255, 255, 255);
+  border-radius: 20px;
+  padding: 20px;
+  box-shadow: 10px 10px 15px rgba(0, 0, 0, 0.2);
+ 
+}
+
+.borde{
+  
+}
+
+.cta-button_ {
+  position: absolute;
+  right: 3px;
+  background: var(--background);
+  box-shadow: 0 0 0 0 var(--accent);
+  outline: 2px solid;
+  color: rgb(255, 255, 255);
+  outline-color: #ff7300;
+  outline-offset: 0;
+  text-shadow: none;
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 2rem;
+  max-width: 140px;
+  width: 100%;
+  letter-spacing: 0.3rem;
+  font-weight: 600;
+  position: relative;
+  text-decoration: none;
+  text-transform: uppercase;
+  display: flex;
+  justify-content: center;
+  box-shadow: 10px 10px 15px rgba(0, 0, 0, 0.2);
+  border-radius: 0px;
+  padding-top: 2px;
+  transition: all 550ms cubic-bezier(.36, .63, .5, .73);
+}
+
+.cta-button_:hover {
+  box-shadow: 0 0 0 2px var(--accent);
+  outline-color: rgba(255, 255, 255, 0);
+  outline-offset: 15px;
+  color: var(--accent);
+}
+
+
+.bg-gradient-header {
+  background: linear-gradient(90deg, #ff7e5f, #feb47b);
+  color: #fff;
+}
+
+.table-container {
+  border-radius: 10px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.356);
+}
+
